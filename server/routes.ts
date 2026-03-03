@@ -288,7 +288,7 @@ export async function registerRoutes(
           username: email.split('@')[0],
           email,
           password: hashedPassword,
-          role: 'staff'
+          role: 'STAFF'
         });
       }
       
@@ -465,7 +465,7 @@ export async function registerRoutes(
       username: 'admin',
       email: 'admin@example.com',
       password: hashedPassword,
-      role: 'owner'
+      role: 'OWNER'
     });
     
     // Seed a basic plan
