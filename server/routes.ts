@@ -482,7 +482,7 @@ export async function registerRoutes(
       licenseKey: "LIC-ENTERPRISE-Q1",
       planId: plan.id,
       userId: adminUser.id,
-      status: "active"
+      status: "ACTIVE"
     });
     
     await storage.createActivityLog({
