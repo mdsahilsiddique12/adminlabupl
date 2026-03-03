@@ -72,7 +72,11 @@ export async function registerRoutes(
       }
       
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-      res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+      });
       
       const { password: _, ...userWithoutPassword } = user;
       res.status(200).json(userWithoutPassword);
