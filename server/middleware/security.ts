@@ -200,7 +200,9 @@ export const requireRole = (roles: string[]) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!roles.includes(user.role)) {
+    const allowed = roles.map(r => r.toLowerCase());
+    const actualRole = String(user.role || "").toLowerCase();
+    if (!allowed.includes(actualRole)) {
       log(`Unauthorized access attempt by ${user.username} (${user.role}) to ${req.path}`, 'security');
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
