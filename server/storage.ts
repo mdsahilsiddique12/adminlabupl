@@ -13,6 +13,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getUsers(): Promise<User[]>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
@@ -36,8 +37,9 @@ export interface IStorage {
   getDevices(): Promise<Device[]>;
   getDevice(id: string): Promise<Device | undefined>;
   getDeviceByFingerprint(fingerprint: string): Promise<Device | undefined>;
+  getDeviceByDiskId(diskId: string): Promise<Device | undefined>;
   createDevice(device: InsertDevice): Promise<Device>;
-  updateDevice(id: string, updates: Partial<InsertDevice>): Promise<Device | undefined>;
+  updateDevice(id: string, updates: Partial<Device>): Promise<Device | undefined>;
 
   // Activity Logs
   getActivityLogs(): Promise<ActivityLog[]>;
@@ -51,6 +53,10 @@ export class DatabaseStorage implements IStorage {
   }
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -118,11 +124,15 @@ export class DatabaseStorage implements IStorage {
     const [device] = await db.select().from(devices).where(eq(devices.fingerprint, fingerprint));
     return device;
   }
+  async getDeviceByDiskId(diskId: string): Promise<Device | undefined> {
+    const [device] = await db.select().from(devices).where(eq(devices.diskId, diskId));
+    return device;
+  }
   async createDevice(insertDevice: InsertDevice): Promise<Device> {
     const [device] = await db.insert(devices).values(insertDevice).returning();
     return device;
   }
-  async updateDevice(id: string, updates: Partial<InsertDevice>): Promise<Device | undefined> {
+  async updateDevice(id: string, updates: Partial<Device>): Promise<Device | undefined> {
     const [device] = await db.update(devices).set(updates).where(eq(devices.id, id)).returning();
     return device;
   }

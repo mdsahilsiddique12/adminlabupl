@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, timestamp, integer, uuid, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, uuid, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -28,12 +28,20 @@ export const plans = pgTable("plans", {
 
 export const devices = pgTable("devices", {
   id: uuid("id").primaryKey().defaultRandom(),
+  ownerName: text("owner_name"),
+  labRegion: text("lab_region"),
   fingerprint: text("fingerprint").notNull().unique(),
+  diskId: text("disk_id").unique(),
+  motherboardId: text("motherboard_id"),
+  cpuId: text("cpu_id"),
+  macAddress: text("mac_address"),
+  systemName: text("system_name"),
+  osVersion: text("os_version"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   firstSeen: timestamp("first_seen").defaultNow(),
   lastSeen: timestamp("last_seen").$onUpdate(() => new Date()),
-  isActive: text("is_active").notNull().default("true"),
+  isActive: boolean("is_active").notNull().default(false),
 });
 
 export const licenses = pgTable("licenses", {
@@ -42,8 +50,11 @@ export const licenses = pgTable("licenses", {
   userId: uuid("user_id").references(() => users.id),
   planId: uuid("plan_id").references(() => plans.id),
   deviceId: uuid("device_id").references(() => devices.id),
-  status: text("status").notNull().default("active"), // active, expired, suspended, pending
+  status: text("status").notNull().default("pending"), // pending, active, expired, suspended
   expiresAt: timestamp("expires_at"),
+  transactionId: text("transaction_id"),
+  paymentMode: text("payment_mode"),
+  paymentVerified: boolean("payment_verified").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
   signature: text("signature"), // RSA signature

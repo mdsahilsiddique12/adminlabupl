@@ -51,7 +51,7 @@ export class DesktopService {
       throw new Error('License not found');
     }
 
-    if (license.status !== 'active') {
+    if (license.status !== 'ACTIVE') {
       throw new Error(`License is ${license.status}`);
     }
 
@@ -77,7 +77,7 @@ export class DesktopService {
       license,
       offlineData,
       signature,
-      publicKey: rsaKeyManager.getPublicKey()
+      publicKey: process.env.RSA_PUBLIC_KEY?.replace(/\\n/g, '\n') || ''
     };
   }
 
@@ -150,7 +150,7 @@ export class DesktopService {
 
     // Check if license was updated since last sync
     const licenseUpdated = license.updatedAt.getTime() > lastSync;
-    const planUpdated = license.plan.updatedAt.getTime() > lastSync;
+    const planUpdated = license.plan ? license.plan.updatedAt.getTime() > lastSync : false;
 
     return {
       licenseUpdated,
@@ -178,7 +178,7 @@ export class DesktopService {
     // Optionally suspend the license
     await this.prisma.license.update({
       where: { licenseKey },
-      data: { status: 'suspended' }
+      data: { status: 'SUSPENDED' }
     });
   }
 
@@ -190,7 +190,8 @@ export class DesktopService {
       where: { licenseKey },
       include: {
         user: true,
-        plan: true
+        plan: true,
+        device: true
       }
     });
 
@@ -199,8 +200,12 @@ export class DesktopService {
     }
 
     // Verify device matches
-    if (license.device?.fingerprint !== deviceFingerprint) {
+    if (!license.device || license.device.fingerprint !== deviceFingerprint) {
       throw new Error('License not activated for this device');
+    }
+
+    if (!license.user || !license.plan) {
+      throw new Error('License metadata is incomplete');
     }
 
     // Create device-specific license data

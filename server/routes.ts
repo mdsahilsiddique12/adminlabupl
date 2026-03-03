@@ -17,7 +17,7 @@ import {
   unblockIP
 } from "./middleware/security";
 import { LicenseService } from "./services/license-service";
-import { PrismaClient } from "@prisma/client";
+import { LicenseStatus, PrismaClient } from "@prisma/client";
 import { allowedOrigins, jwtSecret } from "./config/env";
 
 const JWT_SECRET = jwtSecret();
@@ -124,14 +124,33 @@ export async function registerRoutes(
 
   app.post(api.licenses.create.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
     try {
-      const { userId, planId, deviceFingerprint, expiresAt } = req.body;
-      
-      const license = await licenseService.createLicense(
+      const {
         userId,
         planId,
+        deviceId,
         deviceFingerprint,
-        expiresAt ? new Date(expiresAt) : undefined
-      );
+        expiresAt,
+        status,
+        transactionId,
+        paymentMode,
+        paymentVerified
+      } = req.body;
+      
+      const mappedStatus = typeof status === "string"
+        ? LicenseStatus[status.toUpperCase() as keyof typeof LicenseStatus]
+        : undefined;
+
+      const license = await licenseService.createLicense({
+        userId,
+        planId,
+        deviceId,
+        deviceFingerprint,
+        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        status: mappedStatus,
+        transactionId,
+        paymentMode,
+        paymentVerified: typeof paymentVerified === "boolean" ? paymentVerified : false
+      });
       
       await storage.createActivityLog({
         userId: req.user.id,
@@ -141,7 +160,51 @@ export async function registerRoutes(
       
       res.status(201).json(license);
     } catch(err: any) {
-      res.status(500).json({ message: err.message || "Internal error" });
+      res.status(400).json({ message: err.message || "Internal error" });
+    }
+  });
+
+  app.put(api.licenses.update.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const input = api.licenses.update.input.parse(req.body);
+      const updated = await storage.updateLicense(id, input);
+      if (!updated) {
+        return res.status(404).json({ message: "License not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "Update License",
+        details: `Updated license ${updated.licenseKey}`
+      });
+
+      res.status(200).json(updated);
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      }
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.delete(api.licenses.delete.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const license = await storage.getLicense(id);
+      if (!license) {
+        return res.status(404).json({ message: "License not found" });
+      }
+
+      await storage.deleteLicense(id);
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "Delete License",
+        details: `Deleted license ${license.licenseKey}`
+      });
+      res.status(204).send();
+    } catch {
+      res.status(500).json({ message: "Internal error" });
     }
   });
 
@@ -149,7 +212,7 @@ export async function registerRoutes(
   app.post('/api/licenses/validate', licenseRateLimit, async (req, res) => {
     try {
       const { licenseKey, deviceFingerprint } = req.body;
-      const { ipAddress, userAgent } = req.deviceInfo;
+      const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
       
       const result = await licenseService.validateLicense(
         licenseKey,
@@ -168,7 +231,7 @@ export async function registerRoutes(
   app.post('/api/licenses/activate', licenseRateLimit, async (req, res) => {
     try {
       const { licenseKey, deviceFingerprint } = req.body;
-      const { ipAddress, userAgent } = req.deviceInfo;
+      const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
       
       const license = await licenseService.activateLicense(
         licenseKey,
@@ -183,11 +246,33 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/activate', licenseRateLimit, async (req, res) => {
+    try {
+      const { licenseKey, deviceFingerprint } = req.body;
+      const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
+      const license = await licenseService.activateLicense(licenseKey, deviceFingerprint, ipAddress, userAgent);
+      res.status(200).json(license);
+    } catch(err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  });
+
+  app.post('/api/validate', licenseRateLimit, async (req, res) => {
+    try {
+      const { licenseKey, deviceFingerprint } = req.body;
+      const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
+      const result = await licenseService.validateLicense(licenseKey, deviceFingerprint, ipAddress, userAgent);
+      res.status(200).json(result);
+    } catch(err: any) {
+      res.status(400).json({ valid: false, message: err.message });
+    }
+  });
+
   // Trial license endpoint
   app.post('/api/licenses/trial', licenseRateLimit, async (req, res) => {
     try {
       const { email } = req.body;
-      const { ipAddress } = req.deviceInfo;
+      const { ipAddress = "" } = req.deviceInfo ?? {};
       
       // Check trial eligibility
       const eligible = await licenseService.checkTrialEligibility(email, ipAddress);
@@ -232,10 +317,96 @@ export async function registerRoutes(
     }
   });
 
+  app.put(api.plans.update.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const input = api.plans.update.input.parse(req.body);
+      const plan = await storage.updatePlan(String(id), input);
+      if (!plan) {
+        return res.status(404).json({ message: "Plan not found" });
+      }
+      res.status(200).json(plan);
+    } catch(err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.delete(api.plans.delete.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deletePlan(String(id));
+      res.status(204).send();
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // Devices
+  app.post(api.devices.register.path, apiRateLimit, async (req, res) => {
+    try {
+      const payload = api.devices.register.input.parse(req.body);
+      const existingByDisk = payload.diskId ? await storage.getDeviceByDiskId(payload.diskId) : undefined;
+      const existingByFingerprint = await storage.getDeviceByFingerprint(payload.fingerprint);
+      const existing = existingByDisk ?? existingByFingerprint;
+
+      if (existing) {
+        const updated = await storage.updateDevice(existing.id, {
+          ownerName: payload.ownerName ?? existing.ownerName,
+          labRegion: payload.labRegion ?? existing.labRegion,
+          diskId: payload.diskId ?? existing.diskId,
+          motherboardId: payload.motherboardId ?? existing.motherboardId,
+          cpuId: payload.cpuId ?? existing.cpuId,
+          macAddress: payload.macAddress ?? existing.macAddress,
+          systemName: payload.systemName ?? existing.systemName,
+          osVersion: payload.osVersion ?? existing.osVersion,
+          ipAddress: req.deviceInfo?.ipAddress ?? existing.ipAddress,
+          userAgent: req.deviceInfo?.userAgent ?? existing.userAgent,
+          fingerprint: payload.fingerprint
+        });
+        return res.status(200).json(updated);
+      }
+
+      const created = await storage.createDevice({
+        ...payload,
+        ipAddress: req.deviceInfo?.ipAddress,
+        userAgent: req.deviceInfo?.userAgent
+      });
+
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      }
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get(api.devices.list.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     const devices = await storage.getDevices();
     res.status(200).json(devices);
+  });
+
+  app.put(api.devices.update.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const input = api.devices.update.input.parse(req.body);
+      const device = await storage.updateDevice(id, input);
+      if (!device) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "Update Device",
+        details: `Updated device ${device.id}`
+      });
+
+      res.status(200).json(device);
+    } catch(err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      res.status(500).json({ message: "Internal error" });
+    }
   });
 
   // Activity Logs
@@ -257,20 +428,22 @@ export async function registerRoutes(
   // Security management endpoints
   app.post('/api/security/block-ip', authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     try {
-      const { ip } = req.body;
+      const { ip } = z.object({ ip: z.string().min(1) }).parse(req.body);
       blockIP(ip);
       res.status(200).json({ message: `IP ${ip} blocked successfully` });
     } catch(err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
       res.status(500).json({ message: "Internal error" });
     }
   });
 
   app.post('/api/security/unblock-ip', authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     try {
-      const { ip } = req.body;
+      const { ip } = z.object({ ip: z.string().min(1) }).parse(req.body);
       unblockIP(ip);
       res.status(200).json({ message: `IP ${ip} unblocked successfully` });
     } catch(err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
       res.status(500).json({ message: "Internal error" });
     }
   });

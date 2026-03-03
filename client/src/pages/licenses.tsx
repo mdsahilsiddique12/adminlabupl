@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useLicenses, useCreateLicense, useDeleteLicense, useUpdateLicense } from "@/hooks/use-licenses";
 import { usePlans } from "@/hooks/use-plans";
 import { useUsers } from "@/hooks/use-users";
+import { useDevices } from "@/hooks/use-devices";
 import { format } from "date-fns";
 import { Plus, Search, MoreHorizontal, Trash2, ShieldCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export default function Licenses() {
   const { data: licenses = [], isLoading } = useLicenses();
   const { data: plans = [] } = usePlans();
   const { data: users = [] } = useUsers();
+  const { data: devices = [] } = useDevices();
   
   const createMutation = useCreateLicense();
   const deleteMutation = useDeleteLicense();
@@ -27,7 +29,15 @@ export default function Licenses() {
 
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [formData, setFormData] = useState({ licenseKey: "", planId: "", userId: "", status: "active" });
+  const [formData, setFormData] = useState({
+    planId: "",
+    userId: "",
+    deviceId: "",
+    status: "pending",
+    transactionId: "",
+    paymentMode: "manual_transfer",
+    paymentVerified: false
+  });
 
   const filtered = licenses.filter(l => 
     l.licenseKey.toLowerCase().includes(search.toLowerCase()) ||
@@ -37,13 +47,23 @@ export default function Licenses() {
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate({
+      licenseKey: "",
       ...formData,
-      deviceId: null, // Initial empty
+      deviceId: formData.deviceId || null,
+      userId: formData.userId || null,
       expiresAt: null // Set by backend based on plan duration typically
     }, {
       onSuccess: () => {
         setIsAddOpen(false);
-        setFormData({ licenseKey: "", planId: "", userId: "", status: "active" });
+        setFormData({
+          planId: "",
+          userId: "",
+          deviceId: "",
+          status: "pending",
+          transactionId: "",
+          paymentMode: "manual_transfer",
+          paymentVerified: false
+        });
       }
     });
   };
@@ -76,14 +96,6 @@ export default function Licenses() {
             </DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4 pt-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Custom Key (Optional)</label>
-                <Input 
-                  value={formData.licenseKey} 
-                  onChange={e => setFormData({...formData, licenseKey: e.target.value})}
-                  placeholder="Leave blank for auto-generation"
-                />
-              </div>
-              <div className="space-y-2">
                 <label className="text-sm font-medium">Assign Plan</label>
                 <Select value={formData.planId} onValueChange={v => setFormData({...formData, planId: v})}>
                   <SelectTrigger><SelectValue placeholder="Select plan..." /></SelectTrigger>
@@ -102,15 +114,52 @@ export default function Licenses() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium">Bind Device</label>
+                <Select value={formData.deviceId} onValueChange={v => setFormData({...formData, deviceId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select device..." /></SelectTrigger>
+                  <SelectContent>
+                    {devices.map(d => <SelectItem key={d.id} value={d.id}>{d.systemName || d.fingerprint}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Transaction ID</label>
+                <Input
+                  value={formData.transactionId}
+                  onChange={e => setFormData({...formData, transactionId: e.target.value})}
+                  placeholder="Bank/UPI transaction reference"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Payment Mode</label>
+                <Select value={formData.paymentMode} onValueChange={v => setFormData({...formData, paymentMode: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual_transfer">Manual Transfer</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_deposit">Bank Deposit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Status</label>
                 <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={formData.paymentVerified}
+                  onChange={(e) => setFormData({ ...formData, paymentVerified: e.target.checked })}
+                />
+                Payment verified
+              </label>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Generating..." : "Generate"}
               </Button>
@@ -167,7 +216,9 @@ export default function Licenses() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-medium text-foreground">{plan?.name || 'Unassigned'}</div>
-                        <div className="text-xs text-muted-foreground">{user?.username || 'No user'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {user?.username || 'No user'} | {license.paymentVerified ? "Paid" : "Payment Pending"}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant="outline" className={getStatusColor(license.status)}>

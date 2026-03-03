@@ -1,10 +1,12 @@
-import { useDevices } from "@/hooks/use-devices";
+import { useDevices, useUpdateDevice } from "@/hooks/use-devices";
 import { format } from "date-fns";
 import { MonitorSmartphone, Globe, Hash } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function Devices() {
   const { data: devices = [], isLoading } = useDevices();
+  const updateDevice = useUpdateDevice();
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -40,6 +42,19 @@ export default function Devices() {
                 <div className="text-muted-foreground mb-1">Last Seen</div>
                 <div className="font-medium text-foreground">
                   {device.lastSeen ? format(new Date(device.lastSeen), 'MMM dd, yyyy HH:mm') : 'Never'}
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <Badge variant={device.isActive ? "default" : "secondary"}>
+                    {device.isActive ? "Approved" : "Pending"}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => updateDevice.mutate({ id: device.id, isActive: !device.isActive })}
+                    disabled={updateDevice.isPending}
+                  >
+                    {device.isActive ? "Block" : "Approve"}
+                  </Button>
                 </div>
               </div>
             </div>

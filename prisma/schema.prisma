@@ -53,12 +53,20 @@ model Plan {
 
 model Device {
   id           String   @id @default(cuid())
+  ownerName    String?
+  labRegion    String?
   fingerprint  String   @unique
+  diskId       String?  @unique
+  motherboardId String?
+  cpuId        String?
+  macAddress   String?
+  systemName   String?
+  osVersion    String?
   ipAddress    String?
   userAgent    String?
   firstSeen    DateTime @default(now())
   lastSeen     DateTime @updatedAt
-  isActive     Boolean  @default(true)
+  isActive     Boolean  @default(false)
 
   // Relations
   licenses License[]
@@ -69,8 +77,11 @@ model Device {
 model License {
   id         String        @id @default(cuid())
   licenseKey String        @unique
-  status     LicenseStatus @default(ACTIVE)
+  status     LicenseStatus @default(PENDING)
   expiresAt  DateTime?
+  transactionId String?
+  paymentMode   String?
+  paymentVerified Boolean  @default(false)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
   signature  String        // RSA signature

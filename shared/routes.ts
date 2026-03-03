@@ -88,6 +88,14 @@ export const api = {
     }
   },
   devices: {
+    register: {
+      method: 'POST' as const,
+      path: '/api/devices/register' as const,
+      input: insertDeviceSchema.extend({
+        fingerprint: z.string().min(1),
+      }),
+      responses: { 201: z.custom<typeof devices.$inferSelect>(), 200: z.custom<typeof devices.$inferSelect>(), 400: errorSchemas.validation }
+    },
     list: {
       method: 'GET' as const,
       path: '/api/devices' as const,
@@ -96,7 +104,9 @@ export const api = {
     update: {
       method: 'PUT' as const,
       path: '/api/devices/:id' as const,
-      input: insertDeviceSchema.partial(),
+      input: insertDeviceSchema.partial().extend({
+        isActive: z.boolean().optional(),
+      }),
       responses: { 200: z.custom<typeof devices.$inferSelect>(), 404: errorSchemas.notFound }
     }
   },

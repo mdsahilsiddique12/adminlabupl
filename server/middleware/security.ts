@@ -128,8 +128,9 @@ export const unblockIP = (ip: string) => {
 };
 
 export const ipBlocker = (req: Request, res: Response, next: NextFunction) => {
-  if (blockedIPs.has(req.ip)) {
-    log(`Blocked IP attempted access: ${req.ip}`, 'security');
+  const requestIp = req.ip ?? '';
+  if (blockedIPs.has(requestIp)) {
+    log(`Blocked IP attempted access: ${requestIp}`, 'security');
     return res.status(403).json({ error: 'Access forbidden' });
   }
   next();

@@ -1,21 +1,26 @@
 import { PrismaClient } from '@prisma/client';
 import { rsaKeyManager } from '../utils/rsa-keys';
-import { v4 as uuidv4 } from 'uuid';
-import { LicenseStatus, UserRole } from '@prisma/client';
+import { LicenseStatus } from '@prisma/client';
 import crypto from 'crypto';
 
 interface LicenseData {
   licenseKey: string;
-  userId: string;
-  planId: string;
+  userId: string | null;
+  planId: string | null;
   expiresAt: Date;
-  deviceFingerprint?: string;
+  deviceFingerprint: string;
 }
 
-interface DeviceFingerprint {
-  fingerprint: string;
-  ipAddress: string;
-  userAgent: string;
+interface CreateLicenseRequest {
+  userId: string;
+  planId: string;
+  deviceId?: string;
+  deviceFingerprint?: string;
+  expiresAt?: Date;
+  status?: LicenseStatus;
+  transactionId?: string;
+  paymentMode?: string;
+  paymentVerified?: boolean;
 }
 
 export class LicenseService {
@@ -39,11 +44,20 @@ export class LicenseService {
    * Create a new license with RSA signature
    */
   async createLicense(
-    userId: string,
-    planId: string,
-    deviceFingerprint?: string,
-    expiresAt?: Date
+    request: CreateLicenseRequest
   ) {
+    const {
+      userId,
+      planId,
+      deviceId,
+      deviceFingerprint,
+      expiresAt,
+      status,
+      transactionId,
+      paymentMode,
+      paymentVerified
+    } = request;
+
     // Check if user exists and has permission
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -62,19 +76,32 @@ export class LicenseService {
     // Set expiration date (default to plan duration)
     const expirationDate = expiresAt || new Date(Date.now() + (plan.durationDays * 24 * 60 * 60 * 1000));
 
-    // Create device if fingerprint provided
-    let deviceId: string | undefined;
-    if (deviceFingerprint) {
-      const device = await this.prisma.device.upsert({
+    if (!deviceId && !deviceFingerprint) {
+      throw new Error('Device is required to create a license');
+    }
+
+    // Resolve device binding (mandatory)
+    let resolvedDevice = null as Awaited<ReturnType<typeof this.prisma.device.findUnique>> | null;
+    if (deviceId) {
+      resolvedDevice = await this.prisma.device.findUnique({ where: { id: deviceId } });
+      if (!resolvedDevice) {
+        throw new Error('Device not found');
+      }
+    } else if (deviceFingerprint) {
+      resolvedDevice = await this.prisma.device.upsert({
         where: { fingerprint: deviceFingerprint },
         update: { lastSeen: new Date() },
         create: {
           fingerprint: deviceFingerprint,
           firstSeen: new Date(),
-          lastSeen: new Date()
+          lastSeen: new Date(),
+          isActive: false
         }
       });
-      deviceId = device.id;
+    }
+
+    if (!resolvedDevice) {
+      throw new Error('Unable to resolve device');
     }
 
     // Create license data for signing
@@ -83,7 +110,7 @@ export class LicenseService {
       userId,
       planId,
       expiresAt: expirationDate,
-      deviceFingerprint
+      deviceFingerprint: resolvedDevice.fingerprint
     };
 
     // Sign the license data
@@ -95,12 +122,15 @@ export class LicenseService {
         licenseKey,
         userId,
         planId,
-        deviceId,
-        status: LicenseStatus.ACTIVE,
+        deviceId: resolvedDevice.id,
+        status: status ?? LicenseStatus.PENDING,
         expiresAt: expirationDate,
+        transactionId,
+        paymentMode,
+        paymentVerified: paymentVerified ?? false,
         signature,
-        activationDate: new Date(),
-        lastValidated: new Date()
+        activationDate: status === LicenseStatus.ACTIVE ? new Date() : null,
+        lastValidated: null
       },
       include: {
         user: true,
@@ -145,7 +175,15 @@ export class LicenseService {
       throw new Error('Invalid license key');
     }
 
-    // Check if license is active
+    // Enforce manual payment verification
+    if (!license.paymentVerified) {
+      throw new Error('Payment not verified for this license');
+    }
+
+    // Check if license is active and not suspended
+    if (license.status === LicenseStatus.SUSPENDED) {
+      throw new Error('License is suspended');
+    }
     if (license.status !== LicenseStatus.ACTIVE) {
       throw new Error(`License is ${license.status.toLowerCase()}`);
     }
@@ -160,13 +198,21 @@ export class LicenseService {
       throw new Error('License has expired');
     }
 
+    if (!license.device || license.device.fingerprint !== deviceFingerprint) {
+      throw new Error('Device does not match this license');
+    }
+
+    if (!license.device.isActive) {
+      throw new Error('Device is not approved by admin');
+    }
+
     // Verify RSA signature
     const licenseData: LicenseData = {
       licenseKey: license.licenseKey,
       userId: license.userId,
       planId: license.planId,
       expiresAt: license.expiresAt!,
-      deviceFingerprint: license.device?.fingerprint
+      deviceFingerprint: license.device.fingerprint
     };
 
     if (!this.verifyLicenseSignature(licenseData, license.signature!)) {
@@ -202,7 +248,8 @@ export class LicenseService {
       valid: true,
       license,
       plan: license.plan,
-      user: license.user
+      user: license.user,
+      validationToken: this.createValidationToken(license)
     };
   }
 
@@ -226,9 +273,16 @@ export class LicenseService {
       throw new Error('Invalid license key');
     }
 
-    // Check if already activated on a different device
-    if (license.deviceId && license.deviceId !== license.device?.id) {
-      throw new Error('License is already activated on another device');
+    if (!license.paymentVerified) {
+      throw new Error('Payment not verified for this license');
+    }
+
+    if (license.status === LicenseStatus.SUSPENDED) {
+      throw new Error('License is suspended');
+    }
+
+    if (license.expiresAt && license.expiresAt < new Date()) {
+      throw new Error('License has expired');
     }
 
     // Create or update device
@@ -244,13 +298,30 @@ export class LicenseService {
       }
     });
 
+    if (!device.isActive) {
+      throw new Error('Device is pending admin approval');
+    }
+
+    if (license.deviceId && license.deviceId !== device.id) {
+      throw new Error('License is already activated on another device');
+    }
+
+    const licenseData: LicenseData = {
+      licenseKey: license.licenseKey,
+      userId: license.userId,
+      planId: license.planId,
+      expiresAt: license.expiresAt!,
+      deviceFingerprint: device.fingerprint
+    };
+
     // Update license with device
     const updatedLicense = await this.prisma.license.update({
       where: { id: license.id },
       data: {
         deviceId: device.id,
         status: LicenseStatus.ACTIVE,
-        activationDate: new Date()
+        activationDate: new Date(),
+        signature: this.signLicenseData(licenseData)
       },
       include: {
         user: true,
@@ -326,12 +397,15 @@ export class LicenseService {
       throw new Error('No trial plan available');
     }
 
-    const trialLicense = await this.createLicense(
+    const trialLicense = await this.createLicense({
       userId,
-      trialPlan.id,
-      undefined,
-      new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 7 days trial
-    );
+      planId: trialPlan.id,
+      deviceFingerprint: `trial-${userId}`,
+      expiresAt: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)),
+      status: LicenseStatus.ACTIVE,
+      paymentVerified: true,
+      paymentMode: 'trial'
+    });
 
     // Log trial activation
     await this.prisma.activityLog.create({
@@ -405,6 +479,30 @@ export class LicenseService {
   private verifyLicenseSignature(data: LicenseData, signature: string): boolean {
     const dataString = JSON.stringify(data);
     return rsaKeyManager.verify(dataString, signature);
+  }
+
+  private createValidationToken(license: {
+    id: string;
+    licenseKey: string;
+    deviceId: string | null;
+    expiresAt: Date | null;
+    paymentVerified: boolean;
+    status: LicenseStatus;
+  }): { payload: string; signature: string } {
+    const payload = JSON.stringify({
+      licenseId: license.id,
+      licenseKey: license.licenseKey,
+      deviceId: license.deviceId,
+      expiresAt: license.expiresAt,
+      paymentVerified: license.paymentVerified,
+      status: license.status,
+      issuedAt: new Date().toISOString()
+    });
+
+    return {
+      payload,
+      signature: rsaKeyManager.sign(payload)
+    };
   }
 
   /**
