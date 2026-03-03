@@ -33,11 +33,12 @@ export class LicenseService {
   /**
    * Generate a unique license key
    */
-  generateLicenseKey(): string {
+  generateLicenseKey(planName: string): string {
     const prefix = 'LIC';
+    const planCode = this.getPlanCode(planName);
     const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
     const timestamp = Date.now().toString(36).substring(0, 4).toUpperCase();
-    return `${prefix}-${randomPart}-${timestamp}`;
+    return `${prefix}-${planCode}-${randomPart}-${timestamp}`;
   }
 
   /**
@@ -51,7 +52,6 @@ export class LicenseService {
       planId,
       deviceId,
       deviceFingerprint,
-      expiresAt,
       status,
       transactionId,
       paymentMode,
@@ -71,10 +71,10 @@ export class LicenseService {
     }
 
     // Generate license key
-    const licenseKey = this.generateLicenseKey();
+    const licenseKey = this.generateLicenseKey(plan.name);
     
-    // Set expiration date (default to plan duration)
-    const expirationDate = expiresAt || new Date(Date.now() + (plan.durationDays * 24 * 60 * 60 * 1000));
+    // Always derive validity from the selected plan's duration.
+    const expirationDate = this.calculateExpiryDate(plan.durationDays);
 
     if (!deviceId && !deviceFingerprint) {
       throw new Error('Device is required to create a license');
@@ -154,6 +154,23 @@ export class LicenseService {
   }
 
   /**
+   * Mark licenses as expired when their validity date has passed.
+   */
+  async expireDueLicenses(): Promise<number> {
+    const result = await this.prisma.license.updateMany({
+      where: {
+        expiresAt: { lte: new Date() },
+        status: { in: [LicenseStatus.ACTIVE, LicenseStatus.PENDING] }
+      },
+      data: {
+        status: LicenseStatus.EXPIRED
+      }
+    });
+
+    return result.count;
+  }
+
+  /**
    * Validate a license key and device
    */
   async validateLicense(
@@ -180,22 +197,22 @@ export class LicenseService {
       throw new Error('Payment not verified for this license');
     }
 
+    if (this.isPastExpiry(license.expiresAt)) {
+      if (license.status !== LicenseStatus.EXPIRED) {
+        await this.prisma.license.update({
+          where: { id: license.id },
+          data: { status: LicenseStatus.EXPIRED }
+        });
+      }
+      throw new Error('License has expired');
+    }
+
     // Check if license is active and not suspended
     if (license.status === LicenseStatus.SUSPENDED) {
       throw new Error('License is suspended');
     }
     if (license.status !== LicenseStatus.ACTIVE) {
       throw new Error(`License is ${license.status.toLowerCase()}`);
-    }
-
-    // Check expiration
-    if (license.expiresAt && license.expiresAt < new Date()) {
-      // Auto-expire the license
-      await this.prisma.license.update({
-        where: { id: license.id },
-        data: { status: LicenseStatus.EXPIRED }
-      });
-      throw new Error('License has expired');
     }
 
     if (!license.device || license.device.fingerprint !== deviceFingerprint) {
@@ -281,7 +298,13 @@ export class LicenseService {
       throw new Error('License is suspended');
     }
 
-    if (license.expiresAt && license.expiresAt < new Date()) {
+    if (this.isPastExpiry(license.expiresAt)) {
+      if (license.status !== LicenseStatus.EXPIRED) {
+        await this.prisma.license.update({
+          where: { id: license.id },
+          data: { status: LicenseStatus.EXPIRED }
+        });
+      }
       throw new Error('License has expired');
     }
 
@@ -401,7 +424,6 @@ export class LicenseService {
       userId,
       planId: trialPlan.id,
       deviceFingerprint: `trial-${userId}`,
-      expiresAt: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)),
       status: LicenseStatus.ACTIVE,
       paymentVerified: true,
       paymentMode: 'trial'
@@ -511,5 +533,21 @@ export class LicenseService {
   static generateDeviceFingerprint(userAgent: string, ipAddress: string): string {
     const data = `${userAgent}-${ipAddress}-${process.env.NODE_ENV || 'development'}`;
     return crypto.createHash('sha256').update(data).digest('hex');
+  }
+
+  private calculateExpiryDate(durationDays: number): Date {
+    return new Date(Date.now() + (durationDays * 24 * 60 * 60 * 1000));
+  }
+
+  private isPastExpiry(expiresAt: Date | null): boolean {
+    return !!expiresAt && expiresAt <= new Date();
+  }
+
+  private getPlanCode(planName: string): string {
+    const normalized = planName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!normalized) {
+      return 'GEN';
+    }
+    return normalized.slice(0, 4).padEnd(4, 'X');
   }
 }

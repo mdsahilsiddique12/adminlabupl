@@ -122,6 +122,7 @@ export async function registerRoutes(
 
   // License management routes
   app.get(api.licenses.list.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
+    await licenseService.expireDueLicenses();
     const licenses = await storage.getLicenses();
     res.status(200).json(licenses);
   });
@@ -133,7 +134,6 @@ export async function registerRoutes(
         planId,
         deviceId,
         deviceFingerprint,
-        expiresAt,
         status,
         transactionId,
         paymentMode,
@@ -149,7 +149,6 @@ export async function registerRoutes(
         planId,
         deviceId,
         deviceFingerprint,
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
         status: mappedStatus,
         transactionId,
         paymentMode,
@@ -422,6 +421,7 @@ export async function registerRoutes(
   // License statistics endpoint
   app.get('/api/licenses/stats', authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     try {
+      await licenseService.expireDueLicenses();
       const stats = await licenseService.getLicenseStats();
       res.status(200).json(stats);
     } catch(err) {

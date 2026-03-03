@@ -44,8 +44,8 @@ export const apiRateLimit = createRateLimiter(
 
 // License activation rate limiting (more strict)
 export const licenseRateLimit = createRateLimiter(
-  60 * 60 * 1000, // 1 hour
-  3, // limit each IP to 3 license activations per hour
+  5 * 60 * 1000, // 5 minutes
+  3, // limit each IP to 3 license activations per 5 minutes
   'Too many license activation attempts, please try again later.'
 );
 

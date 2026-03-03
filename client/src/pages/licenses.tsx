@@ -45,6 +45,7 @@ export default function Licenses() {
     l.licenseKey.toLowerCase().includes(search.toLowerCase()) ||
     l.status.toLowerCase().includes(search.toLowerCase())
   );
+  const selectedPlan = plans.find(p => p.id === formData.planId);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +61,7 @@ export default function Licenses() {
       licenseKey: "",
       ...formData,
       deviceId: formData.deviceId || null,
-      userId: formData.userId || null,
-      expiresAt: null // Set by backend based on plan duration typically
+      userId: formData.userId || null
     }, {
       onSuccess: () => {
         setIsAddOpen(false);
@@ -113,6 +113,11 @@ export default function Licenses() {
                     {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {selectedPlan ? (
+                  <p className="text-xs text-muted-foreground">
+                    Validity: {selectedPlan.durationDays} day{selectedPlan.durationDays === 1 ? "" : "s"} (from selected plan)
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Assign User (Optional)</label>
@@ -243,6 +248,12 @@ export default function Licenses() {
                         <div className="flex items-center gap-1 text-muted-foreground text-xs mb-1">
                           <Clock className="w-3 h-3" /> 
                           Created: {license.createdAt ? format(new Date(license.createdAt), 'MMM dd, yyyy') : 'N/A'}
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-1">
+                          Validity: {plan?.durationDays ? `${plan.durationDays} day${plan.durationDays === 1 ? "" : "s"}` : "N/A"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Last Date of Use: {license.expiresAt ? format(new Date(license.expiresAt), 'MMM dd, yyyy') : 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
