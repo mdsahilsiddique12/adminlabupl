@@ -1,75 +1,77 @@
-import { pgTable, text, timestamp, integer, uuid, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("staff"), // owner, admin, staff
-  isActive: text("is_active").notNull().default("true"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
+  role: text("role").notNull().default("STAFF"), // OWNER, ADMIN, STAFF
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").$onUpdate(() => new Date()),
 });
 
 export const plans = pgTable("plans", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
   name: text("name").notNull().unique(),
   price: integer("price").notNull(), // in cents
-  durationDays: integer("duration_days").notNull(),
+  durationDays: integer("durationDays").notNull(),
   features: jsonb("features").default([]),
   description: text("description"),
-  isActive: text("is_active").notNull().default("true"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").$onUpdate(() => new Date()),
+  ownerId: text("ownerId"),
+  managerId: text("managerId"),
 });
 
 export const devices = pgTable("devices", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  ownerName: text("owner_name"),
-  labRegion: text("lab_region"),
+  id: text("id").primaryKey(),
+  ownerName: text("ownerName"),
+  labRegion: text("labRegion"),
   fingerprint: text("fingerprint").notNull().unique(),
-  diskId: text("disk_id").unique(),
-  motherboardId: text("motherboard_id"),
-  cpuId: text("cpu_id"),
-  macAddress: text("mac_address"),
-  systemName: text("system_name"),
-  osVersion: text("os_version"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  firstSeen: timestamp("first_seen").defaultNow(),
-  lastSeen: timestamp("last_seen").$onUpdate(() => new Date()),
-  isActive: boolean("is_active").notNull().default(false),
+  diskId: text("diskId").unique(),
+  motherboardId: text("motherboardId"),
+  cpuId: text("cpuId"),
+  macAddress: text("macAddress"),
+  systemName: text("systemName"),
+  osVersion: text("osVersion"),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  firstSeen: timestamp("firstSeen").defaultNow(),
+  lastSeen: timestamp("lastSeen").$onUpdate(() => new Date()),
+  isActive: boolean("isActive").notNull().default(false),
 });
 
 export const licenses = pgTable("licenses", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  licenseKey: text("license_key").notNull().unique(),
-  userId: uuid("user_id").references(() => users.id),
-  planId: uuid("plan_id").references(() => plans.id),
-  deviceId: uuid("device_id").references(() => devices.id),
-  status: text("status").notNull().default("pending"), // pending, active, expired, suspended
-  expiresAt: timestamp("expires_at"),
-  transactionId: text("transaction_id"),
-  paymentMode: text("payment_mode"),
-  paymentVerified: boolean("payment_verified").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
+  id: text("id").primaryKey(),
+  licenseKey: text("licenseKey").notNull().unique(),
+  userId: text("userId").references(() => users.id),
+  planId: text("planId").references(() => plans.id),
+  deviceId: text("deviceId").references(() => devices.id),
+  status: text("status").notNull().default("PENDING"), // PENDING, ACTIVE, EXPIRED, SUSPENDED
+  expiresAt: timestamp("expiresAt"),
+  transactionId: text("transactionId"),
+  paymentMode: text("paymentMode"),
+  paymentVerified: boolean("paymentVerified").notNull().default(false),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").$onUpdate(() => new Date()),
   signature: text("signature"), // RSA signature
-  activationDate: timestamp("activation_date"),
-  lastValidated: timestamp("last_validated"),
+  activationDate: timestamp("activationDate"),
+  lastValidated: timestamp("lastValidated"),
 });
 
 export const activityLogs = pgTable("activity_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").references(() => users.id),
+  id: text("id").primaryKey(),
+  userId: text("userId").references(() => users.id),
   action: text("action").notNull(),
   details: text("details"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  createdAt: timestamp("created_at").defaultNow(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow(),
 });
 
 // Relations

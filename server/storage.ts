@@ -7,6 +7,7 @@ import {
   type Device, type InsertDevice,
   type ActivityLog, type InsertActivityLog
 } from "@shared/schema";
+import crypto from "crypto";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
@@ -60,7 +61,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const [user] = await db.insert(users).values({ id: crypto.randomUUID(), ...insertUser }).returning();
     return user;
   }
   async getUsers(): Promise<User[]> {
@@ -79,7 +80,7 @@ export class DatabaseStorage implements IStorage {
     return plan;
   }
   async createPlan(insertPlan: InsertPlan): Promise<Plan> {
-    const [plan] = await db.insert(plans).values(insertPlan).returning();
+    const [plan] = await db.insert(plans).values({ id: crypto.randomUUID(), ...insertPlan }).returning();
     return plan;
   }
   async updatePlan(id: string, updates: Partial<InsertPlan>): Promise<Plan | undefined> {
@@ -102,7 +103,7 @@ export class DatabaseStorage implements IStorage {
     return license;
   }
   async createLicense(insertLicense: InsertLicense): Promise<License> {
-    const [license] = await db.insert(licenses).values(insertLicense).returning();
+    const [license] = await db.insert(licenses).values({ id: crypto.randomUUID(), ...insertLicense }).returning();
     return license;
   }
   async updateLicense(id: string, updates: Partial<InsertLicense>): Promise<License | undefined> {
@@ -129,7 +130,7 @@ export class DatabaseStorage implements IStorage {
     return device;
   }
   async createDevice(insertDevice: InsertDevice): Promise<Device> {
-    const [device] = await db.insert(devices).values(insertDevice).returning();
+    const [device] = await db.insert(devices).values({ id: crypto.randomUUID(), ...insertDevice }).returning();
     return device;
   }
   async updateDevice(id: string, updates: Partial<Device>): Promise<Device | undefined> {
@@ -141,7 +142,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(activityLogs);
   }
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
-    const [activityLog] = await db.insert(activityLogs).values(log).returning();
+    const [activityLog] = await db.insert(activityLogs).values({ id: crypto.randomUUID(), ...log }).returning();
     return activityLog;
   }
 }
