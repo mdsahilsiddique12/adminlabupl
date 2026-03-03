@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import cors from 'cors';
 import { log } from '../index';
+import { allowedOrigins } from '../config/env';
 
 // Rate limiting configurations
 export const createRateLimiter = (windowMs: number, max: number, message: string) => {
@@ -73,7 +74,7 @@ export const securityHeaders = helmet({
 
 // CORS configuration
 export const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
+  origin: allowedOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']

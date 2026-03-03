@@ -12,15 +12,15 @@ import {
   apiRateLimit, 
   licenseRateLimit,
   securityMiddleware,
-  authenticateToken,
   requireRole,
   blockIP,
   unblockIP
 } from "./middleware/security";
 import { LicenseService } from "./services/license-service";
 import { PrismaClient } from "@prisma/client";
+import { allowedOrigins, jwtSecret } from "./config/env";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-for-jwt-keep-it-safe";
+const JWT_SECRET = jwtSecret();
 const prisma = new PrismaClient();
 const licenseService = new LicenseService(prisma);
 
@@ -45,7 +45,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Configure CORS for Netlify
   app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins(),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
