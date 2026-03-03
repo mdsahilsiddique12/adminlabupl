@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  role      UserRole @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  licenses     License[]
+  activityLogs ActivityLog[]
+  ownedPlans   Plan[]     @relation("PlanOwner")
+  managedPlans Plan[]     @relation("PlanManager")
+
+  @@map("users")
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  price       Int      // in cents
+  durationDays Int
+  features    Json
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId String?
+  owner   User?    @relation("PlanOwner", fields: [ownerId], references: [id])
+  managerId String?
+  manager User?    @relation("PlanManager", fields: [managerId], references: [id])
+  
+  licenses License[]
+
+  @@map("plans")
+}
+
+model Device {
+  id           String   @id @default(cuid())
+  fingerprint  String   @unique
+  ipAddress    String?
+  userAgent    String?
+  firstSeen    DateTime @default(now())
+  lastSeen     DateTime @updatedAt
+  isActive     Boolean  @default(true)
+
+  // Relations
+  licenses License[]
+
+  @@map("devices")
+}
+
+model License {
+  id         String        @id @default(cuid())
+  licenseKey String        @unique
+  status     LicenseStatus @default(ACTIVE)
+  expiresAt  DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  signature  String        // RSA signature
+  activationDate DateTime?
+  lastValidated DateTime?
+
+  // Relations
+  userId  String?
+  user    User?   @relation(fields: [userId], references: [id])
+  
+  planId  String?
+  plan    Plan?   @relation(fields: [planId], references: [id])
+  
+  deviceId String?
+  device  Device? @relation(fields: [deviceId], references: [id])
+
+  @@map("licenses")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String?
+  user   User? @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  PENDING
+}
