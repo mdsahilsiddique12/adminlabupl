@@ -28,8 +28,16 @@ export function useCreateLicense() {
         method: api.licenses.create.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validated),
+        credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create license");
+      if (!res.ok) {
+        let message = "Failed to create license";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {}
+        throw new Error(message);
+      }
       return api.licenses.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
@@ -52,6 +60,7 @@ export function useUpdateLicense() {
         method: api.licenses.update.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validated),
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update license");
       return api.licenses.update.responses[200].parse(await res.json());
@@ -71,7 +80,7 @@ export function useDeleteLicense() {
   return useMutation({
     mutationFn: async (id: string) => {
       const url = buildUrl(api.licenses.delete.path, { id });
-      const res = await fetch(url, { method: api.licenses.delete.method });
+      const res = await fetch(url, { method: api.licenses.delete.method, credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete license");
     },
     onSuccess: () => {

@@ -9,6 +9,7 @@ import { Plus, Search, MoreHorizontal, Trash2, ShieldCheck, Clock } from "lucide
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -26,6 +27,7 @@ export default function Licenses() {
   const createMutation = useCreateLicense();
   const deleteMutation = useDeleteLicense();
   const updateMutation = useUpdateLicense();
+  const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -46,6 +48,14 @@ export default function Licenses() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.planId || !formData.deviceId) {
+      toast({
+        title: "Missing fields",
+        description: "Plan and Device are required.",
+        variant: "destructive"
+      });
+      return;
+    }
     createMutation.mutate({
       licenseKey: "",
       ...formData,
@@ -160,7 +170,11 @@ export default function Licenses() {
                 />
                 Payment verified
               </label>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createMutation.isPending || !formData.planId || !formData.deviceId}
+              >
                 {createMutation.isPending ? "Generating..." : "Generate"}
               </Button>
             </form>
