@@ -54,6 +54,7 @@ model Plan {
 model Device {
   id           String   @id @default(cuid())
   ownerName    String?
+  ownerEmail   String?
   labRegion    String?
   fingerprint  String   @unique
   diskId       String?  @unique

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useLicenses, useCreateLicense, useDeleteLicense, useUpdateLicense } from "@/hooks/use-licenses";
+import { useLicenses, useCreateLicense, useDeleteLicense, useUpdateLicense, useSendLicenseEmail } from "@/hooks/use-licenses";
 import { usePlans } from "@/hooks/use-plans";
 import { useUsers } from "@/hooks/use-users";
 import { useDevices } from "@/hooks/use-devices";
 import { format } from "date-fns";
-import { Plus, Search, MoreHorizontal, Trash2, ShieldCheck, Clock } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Trash2, ShieldCheck, Clock, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +27,12 @@ export default function Licenses() {
   const createMutation = useCreateLicense();
   const deleteMutation = useDeleteLicense();
   const updateMutation = useUpdateLicense();
+  const sendEmailMutation = useSendLicenseEmail();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     planId: "",
     userId: "",
@@ -79,12 +81,26 @@ export default function Licenses() {
   };
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch(status.toLowerCase()) {
       case 'active': return 'bg-green-500/10 text-green-500 border-green-500/20';
       case 'expired': return 'bg-destructive/10 text-destructive border-destructive/20';
       case 'suspended': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
       default: return 'bg-secondary text-secondary-foreground';
     }
+  };
+
+  const getToggledStatus = (currentStatus: string) => {
+    return currentStatus.toUpperCase() === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+  };
+
+  const copyLicenseKey = async (id: string, key: string) => {
+    await navigator.clipboard.writeText(key);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((curr) => (curr === id ? null : curr)), 1500);
+    toast({
+      title: "Copied",
+      description: "License key copied to clipboard."
+    });
   };
 
   return (
@@ -230,7 +246,16 @@ export default function Licenses() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <ShieldCheck className="w-4 h-4 text-primary" />
-                          <span className="font-mono bg-muted px-2 py-1 rounded text-foreground">{license.licenseKey.substring(0,16)}...</span>
+                          <span className="font-mono bg-muted px-2 py-1 rounded text-foreground select-text break-all">{license.licenseKey}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => copyLicenseKey(license.id, license.licenseKey)}
+                            title="Copy full license key"
+                          >
+                            {copiedId === license.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                          </Button>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -264,8 +289,14 @@ export default function Licenses() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem onClick={() => updateMutation.mutate({ id: license.id, status: license.status === 'active' ? 'suspended' : 'active'})}>
+                            <DropdownMenuItem onClick={() => updateMutation.mutate({ id: license.id, status: getToggledStatus(license.status)})}>
                               Toggle Status
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => sendEmailMutation.mutate(license.id)}
+                              disabled={sendEmailMutation.isPending}
+                            >
+                              Send / Resend Email
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="text-destructive focus:text-destructive focus:bg-destructive/10"

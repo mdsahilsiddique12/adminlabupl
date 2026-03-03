@@ -31,6 +31,7 @@ export const plans = pgTable("plans", {
 export const devices = pgTable("devices", {
   id: text("id").primaryKey(),
   ownerName: text("ownerName"),
+  ownerEmail: text("ownerEmail"),
   labRegion: text("labRegion"),
   fingerprint: text("fingerprint").notNull().unique(),
   diskId: text("diskId").unique(),

@@ -62,7 +62,14 @@ export function useUpdateLicense() {
         body: JSON.stringify(validated),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to update license");
+      if (!res.ok) {
+        let message = "Failed to update license";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {}
+        throw new Error(message);
+      }
       return api.licenses.update.responses[200].parse(await res.json());
     },
     onSuccess: () => {
@@ -88,5 +95,34 @@ export function useDeleteLicense() {
       toast({ title: "License deleted", description: "The license has been removed." });
     },
     onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
+}
+
+export function useSendLicenseEmail() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const url = buildUrl(api.licenses.sendEmail.path, { id });
+      const res = await fetch(url, {
+        method: api.licenses.sendEmail.method,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        let message = "Failed to send license email";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {}
+        throw new Error(message);
+      }
+      return api.licenses.sendEmail.responses[200].parse(await res.json());
+    },
+    onSuccess: (data) => {
+      toast({ title: "Email sent", description: data.message });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   });
 }

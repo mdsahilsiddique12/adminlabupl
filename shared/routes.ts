@@ -85,6 +85,15 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/licenses/:id' as const,
       responses: { 204: z.void(), 404: errorSchemas.notFound }
+    },
+    sendEmail: {
+      method: 'POST' as const,
+      path: '/api/licenses/:id/send-email' as const,
+      responses: {
+        200: z.object({ message: z.string() }),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation
+      }
     }
   },
   devices: {

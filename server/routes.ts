@@ -17,6 +17,7 @@ import {
   unblockIP
 } from "./middleware/security";
 import { LicenseService } from "./services/license-service";
+import { emailService } from "./services/email-service";
 import { LicenseStatus, PrismaClient } from "@prisma/client";
 import { allowedOrigins, jwtSecret } from "./config/env";
 
@@ -160,6 +161,26 @@ export async function registerRoutes(
         action: "Create License",
         details: `Created license ${license.licenseKey} for user ${userId}`
       });
+
+      const deviceOwnerEmail = license.device?.ownerEmail?.trim();
+      if (deviceOwnerEmail) {
+        try {
+          await emailService.sendLicenseDeliveryEmail({
+            toEmail: deviceOwnerEmail,
+            ownerName: license.device?.ownerName,
+            licenseKey: license.licenseKey,
+            planName: license.plan?.name,
+            expiresAt: license.expiresAt,
+            appName: "LicenseOps"
+          });
+        } catch (emailErr: any) {
+          await storage.createActivityLog({
+            userId: req.user.id,
+            action: "License Email Failed",
+            details: `License ${license.licenseKey} email failed: ${emailErr?.message || "Unknown error"}`
+          });
+        }
+      }
       
       res.status(201).json(license);
     } catch(err: any) {
@@ -171,7 +192,11 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const input = api.licenses.update.input.parse(req.body);
-      const updated = await storage.updateLicense(id, input);
+      const normalized = {
+        ...input,
+        ...(typeof input.status === "string" ? { status: input.status.toUpperCase() } : {})
+      };
+      const updated = await storage.updateLicense(id, normalized);
       if (!updated) {
         return res.status(404).json({ message: "License not found" });
       }
@@ -208,6 +233,47 @@ export async function registerRoutes(
       res.status(204).send();
     } catch {
       res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.post(api.licenses.sendEmail.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const license = await prisma.license.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+          device: true
+        }
+      });
+
+      if (!license) {
+        return res.status(404).json({ message: "License not found" });
+      }
+
+      const recipientEmail = license.device?.ownerEmail?.trim();
+      if (!recipientEmail) {
+        return res.status(400).json({ message: "Device owner email not found for this license" });
+      }
+
+      await emailService.sendLicenseDeliveryEmail({
+        toEmail: recipientEmail,
+        ownerName: license.device?.ownerName,
+        licenseKey: license.licenseKey,
+        planName: license.plan?.name,
+        expiresAt: license.expiresAt,
+        appName: "LicenseOps"
+      });
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "License Email Sent",
+        details: `Sent license ${license.licenseKey} to ${recipientEmail}`
+      });
+
+      res.status(200).json({ message: "License email sent successfully" });
+    } catch (err: any) {
+      res.status(400).json({ message: err.message || "Failed to send license email" });
     }
   });
 
