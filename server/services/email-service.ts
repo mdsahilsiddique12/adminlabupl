@@ -1,5 +1,3 @@
-import nodemailer from "nodemailer";
-
 type LicenseEmailPayload = {
   toEmail: string;
   ownerName?: string | null;
@@ -9,11 +7,15 @@ type LicenseEmailPayload = {
   appName?: string;
 };
 
+type BrevoResponse = {
+  messageId?: string;
+  message?: string;
+  code?: string;
+  error?: string;
+};
+
 export class EmailService {
-  private smtpHost = process.env.BREVO_SMTP_HOST?.trim() || "smtp-relay.brevo.com";
-  private smtpPort = Number(process.env.BREVO_SMTP_PORT || 587);
-  private smtpLogin = process.env.BREVO_SMTP_LOGIN?.trim() || "";
-  private smtpPassword = process.env.BREVO_SMTP_PASSWORD?.trim() || "";
+  private apiKey = process.env.BREVO_API_KEY?.trim() || "";
   private senderEmail = process.env.BREVO_SENDER_EMAIL?.trim() || "";
   private senderName = process.env.BREVO_SENDER_NAME?.trim() || "";
   private appName = process.env.EMAIL_APP_NAME?.trim() || "License Portal";
@@ -21,7 +23,7 @@ export class EmailService {
   private portalUrl = process.env.PORTAL_URL?.trim() || "";
 
   isConfigured(): boolean {
-    return !!this.smtpLogin && !!this.smtpPassword && !!this.senderEmail;
+    return !!this.apiKey && !!this.senderEmail;
   }
 
   async sendLicenseDeliveryEmail(payload: LicenseEmailPayload): Promise<void> {
@@ -38,29 +40,37 @@ export class EmailService {
     const html = this.buildLicenseEmailHtml(payload);
     const text = this.buildLicenseEmailText(payload);
     const senderName = this.senderName || (payload.appName || this.appName);
-    const transporter = nodemailer.createTransport({
-      host: this.smtpHost,
-      port: this.smtpPort,
-      secure: this.smtpPort === 465,
-      auth: {
-        user: this.smtpLogin,
-        pass: this.smtpPassword
-      }
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": this.apiKey,
+        "accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sender: {
+          name: senderName,
+          email: this.senderEmail
+        },
+        to: [
+          {
+            email: toEmail,
+            ...(payload.ownerName?.trim() ? { name: payload.ownerName.trim() } : {})
+          }
+        ],
+        subject,
+        htmlContent: html,
+        textContent: text,
+        ...(this.supportEmail ? { replyTo: { email: this.supportEmail } } : {})
+      })
     });
 
-    try {
-      await transporter.sendMail({
-        from: `"${senderName}" <${this.senderEmail}>`,
-        to: payload.ownerName?.trim()
-          ? `"${payload.ownerName.trim()}" <${toEmail}>`
-          : toEmail,
-        subject,
-        html,
-        text,
-        ...(this.supportEmail ? { replyTo: this.supportEmail } : {})
-      });
-    } catch (err: any) {
-      const details = err?.message || "SMTP error";
+    if (!response.ok) {
+      let details = `${response.status}`;
+      try {
+        const data = (await response.json()) as BrevoResponse;
+        details = data.message || data.error || data.code || details;
+      } catch {}
       throw new Error(`Failed to send license email: ${details}`);
     }
   }
