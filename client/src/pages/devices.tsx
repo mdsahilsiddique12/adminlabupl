@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -137,11 +136,9 @@ export default function Devices() {
                   >
                     {device.isActive ? "Block" : "Approve"}
                   </Button>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="secondary" onClick={() => setSelectedDeviceId(device.id)}>
-                      Details
-                    </Button>
-                  </DialogTrigger>
+                  <Button size="sm" variant="secondary" onClick={() => setSelectedDeviceId(device.id)}>
+                    Details
+                  </Button>
                 </div>
               </div>
             </div>

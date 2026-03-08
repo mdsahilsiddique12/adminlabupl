@@ -44,6 +44,26 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const resolveLicenseRecipient = async (args: {
+    assignedUserEmail?: string | null;
+    deviceOwnerEmail?: string | null;
+    fallbackUserId?: string | null;
+  }) => {
+    const assignedUserEmail = args.assignedUserEmail?.trim();
+    if (assignedUserEmail) return assignedUserEmail;
+
+    const deviceOwnerEmail = args.deviceOwnerEmail?.trim();
+    if (deviceOwnerEmail) return deviceOwnerEmail;
+
+    if (args.fallbackUserId) {
+      const fallbackUser = await storage.getUser(args.fallbackUserId);
+      const fallbackEmail = fallbackUser?.email?.trim();
+      if (fallbackEmail) return fallbackEmail;
+    }
+
+    return null;
+  };
+
   // Configure CORS for Netlify
   app.use(cors({
     origin: allowedOrigins(),
@@ -111,8 +131,23 @@ export async function registerRoutes(
   app.post(api.users.create.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
     try {
       const input = api.users.create.input.parse(req.body);
+
+      const existingByUsername = await storage.getUserByUsername(input.username);
+      if (existingByUsername) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+
+      const existingByEmail = await storage.getUserByEmail(input.email);
+      if (existingByEmail) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
       const hashedPassword = await bcrypt.hash(input.password, 10);
-      const user = await storage.createUser({ ...input, password: hashedPassword });
+      const user = await storage.createUser({
+        ...input,
+        role: String(input.role || "STAFF").toUpperCase(),
+        password: hashedPassword
+      });
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
     } catch(err) {
@@ -127,6 +162,26 @@ export async function registerRoutes(
       const input = api.users.update.input.parse(req.body);
 
       const updates: any = { ...input };
+      if (typeof input.username === "string" && input.username.trim()) {
+        const existingByUsername = await storage.getUserByUsername(input.username.trim());
+        if (existingByUsername && existingByUsername.id !== id) {
+          return res.status(400).json({ message: "Username already exists" });
+        }
+        updates.username = input.username.trim();
+      }
+
+      if (typeof input.email === "string" && input.email.trim()) {
+        const existingByEmail = await storage.getUserByEmail(input.email.trim());
+        if (existingByEmail && existingByEmail.id !== id) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        updates.email = input.email.trim();
+      }
+
+      if (typeof input.role === "string" && input.role.trim()) {
+        updates.role = input.role.toUpperCase();
+      }
+
       if (typeof input.password === "string" && input.password.trim()) {
         updates.password = await bcrypt.hash(input.password, 10);
       } else {
@@ -195,12 +250,16 @@ export async function registerRoutes(
         details: `Created license ${license.licenseKey} for user ${userId}`
       });
 
-      const deviceOwnerEmail = license.device?.ownerEmail?.trim();
-      if (deviceOwnerEmail) {
+      const recipientEmail = await resolveLicenseRecipient({
+        assignedUserEmail: license.user?.email,
+        deviceOwnerEmail: license.device?.ownerEmail,
+        fallbackUserId: req.user?.id
+      });
+      if (recipientEmail) {
         try {
           await emailService.sendLicenseDeliveryEmail({
-            toEmail: deviceOwnerEmail,
-            ownerName: license.device?.ownerName,
+            toEmail: recipientEmail,
+            ownerName: license.user?.username || license.device?.ownerName,
             licenseKey: license.licenseKey,
             planName: license.plan?.name,
             expiresAt: license.expiresAt,
@@ -213,6 +272,12 @@ export async function registerRoutes(
             details: `License ${license.licenseKey} email failed: ${emailErr?.message || "Unknown error"}`
           });
         }
+      } else {
+        await storage.createActivityLog({
+          userId: req.user.id,
+          action: "License Email Skipped",
+          details: `License ${license.licenseKey} email skipped: no recipient email found`
+        });
       }
       
       res.status(201).json(license);
@@ -275,6 +340,7 @@ export async function registerRoutes(
       const license = await prisma.license.findUnique({
         where: { id },
         include: {
+          user: true,
           plan: true,
           device: true
         }
@@ -284,14 +350,18 @@ export async function registerRoutes(
         return res.status(404).json({ message: "License not found" });
       }
 
-      const recipientEmail = license.device?.ownerEmail?.trim();
+      const recipientEmail = await resolveLicenseRecipient({
+        assignedUserEmail: license.user?.email,
+        deviceOwnerEmail: license.device?.ownerEmail,
+        fallbackUserId: req.user?.id
+      });
       if (!recipientEmail) {
-        return res.status(400).json({ message: "Device owner email not found for this license" });
+        return res.status(400).json({ message: "No recipient email found for this license" });
       }
 
       await emailService.sendLicenseDeliveryEmail({
         toEmail: recipientEmail,
-        ownerName: license.device?.ownerName,
+        ownerName: license.user?.username || license.device?.ownerName,
         licenseKey: license.licenseKey,
         planName: license.plan?.name,
         expiresAt: license.expiresAt,
