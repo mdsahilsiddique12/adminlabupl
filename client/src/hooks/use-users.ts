@@ -27,14 +27,25 @@ export function useCreateUser() {
         method: api.users.create.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create user");
+      if (!res.ok) {
+        let message = "Failed to create user";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {}
+        throw new Error(message);
+      }
       return api.users.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
       toast({ title: "User created" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   });
 }
 
@@ -49,13 +60,24 @@ export function useUpdateUser() {
         method: api.users.update.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to update user");
+      if (!res.ok) {
+        let message = "Failed to update user";
+        try {
+          const data = await res.json();
+          if (data?.message) message = data.message;
+        } catch {}
+        throw new Error(message);
+      }
       return api.users.update.responses[200].parse(await res.json());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.users.list.path] });
       toast({ title: "User updated" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   });
 }

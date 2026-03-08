@@ -121,6 +121,39 @@ export async function registerRoutes(
     }
   });
 
+  app.put(api.users.update.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const input = api.users.update.input.parse(req.body);
+
+      const updates: any = { ...input };
+      if (typeof input.password === "string" && input.password.trim()) {
+        updates.password = await bcrypt.hash(input.password, 10);
+      } else {
+        delete updates.password;
+      }
+
+      const updated = await storage.updateUser(String(id), updates);
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "Update User",
+        details: `Updated user ${updated.username}`
+      });
+
+      const { password: _, ...userWithoutPassword } = updated;
+      res.status(200).json(userWithoutPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      }
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // License management routes
   app.get(api.licenses.list.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     await licenseService.expireDueLicenses();

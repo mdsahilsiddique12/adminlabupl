@@ -17,6 +17,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Licenses() {
   const { data: licenses = [], isLoading } = useLicenses();
@@ -33,6 +34,7 @@ export default function Licenses() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedLicenseId, setSelectedLicenseId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     planId: "",
     userId: "",
@@ -48,6 +50,10 @@ export default function Licenses() {
     l.status.toLowerCase().includes(search.toLowerCase())
   );
   const selectedPlan = plans.find(p => p.id === formData.planId);
+  const selectedLicense = licenses.find((l) => l.id === selectedLicenseId) || null;
+  const selectedLicensePlan = plans.find((p) => p.id === selectedLicense?.planId);
+  const selectedLicenseUser = users.find((u) => u.id === selectedLicense?.userId);
+  const selectedLicenseDevice = devices.find((d) => d.id === selectedLicense?.deviceId);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,6 +210,47 @@ export default function Licenses() {
       </div>
 
       <div className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+        <Dialog open={!!selectedLicense} onOpenChange={(open) => !open && setSelectedLicenseId(null)}>
+          <DialogContent className="sm:max-w-[840px]">
+            <DialogHeader>
+              <DialogTitle>License Details</DialogTitle>
+            </DialogHeader>
+            {selectedLicense ? (
+              <Tabs defaultValue="identity" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="identity">Identity</TabsTrigger>
+                  <TabsTrigger value="assignment">Assignment</TabsTrigger>
+                  <TabsTrigger value="payment">Payment</TabsTrigger>
+                  <TabsTrigger value="lifecycle">Lifecycle</TabsTrigger>
+                </TabsList>
+                <TabsContent value="identity" className="space-y-2 mt-4 text-sm">
+                  <div><span className="text-muted-foreground">License Key: </span><span className="font-mono">{selectedLicense.licenseKey}</span></div>
+                  <div><span className="text-muted-foreground">Status: </span><span>{selectedLicense.status}</span></div>
+                  <div><span className="text-muted-foreground">Signature: </span><span className="font-mono">{selectedLicense.signature || "N/A"}</span></div>
+                </TabsContent>
+                <TabsContent value="assignment" className="space-y-2 mt-4 text-sm">
+                  <div><span className="text-muted-foreground">Plan: </span><span>{selectedLicensePlan?.name || "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">User: </span><span>{selectedLicenseUser?.username || "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Device: </span><span>{selectedLicenseDevice?.systemName || selectedLicenseDevice?.fingerprint || "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Device ID: </span><span className="font-mono">{selectedLicense.deviceId || "N/A"}</span></div>
+                </TabsContent>
+                <TabsContent value="payment" className="space-y-2 mt-4 text-sm">
+                  <div><span className="text-muted-foreground">Payment Verified: </span><span>{selectedLicense.paymentVerified ? "Yes" : "No"}</span></div>
+                  <div><span className="text-muted-foreground">Payment Mode: </span><span>{selectedLicense.paymentMode || "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Transaction ID: </span><span className="font-mono">{selectedLicense.transactionId || "N/A"}</span></div>
+                </TabsContent>
+                <TabsContent value="lifecycle" className="space-y-2 mt-4 text-sm">
+                  <div><span className="text-muted-foreground">Created: </span><span>{selectedLicense.createdAt ? format(new Date(selectedLicense.createdAt), "MMM dd, yyyy HH:mm") : "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Updated: </span><span>{selectedLicense.updatedAt ? format(new Date(selectedLicense.updatedAt), "MMM dd, yyyy HH:mm") : "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Activated: </span><span>{selectedLicense.activationDate ? format(new Date(selectedLicense.activationDate), "MMM dd, yyyy HH:mm") : "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Last Validated: </span><span>{selectedLicense.lastValidated ? format(new Date(selectedLicense.lastValidated), "MMM dd, yyyy HH:mm") : "N/A"}</span></div>
+                  <div><span className="text-muted-foreground">Expires / Last Date of Use: </span><span>{selectedLicense.expiresAt ? format(new Date(selectedLicense.expiresAt), "MMM dd, yyyy HH:mm") : "N/A"}</span></div>
+                </TabsContent>
+              </Tabs>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
         <div className="p-4 border-b border-border/40 bg-muted/10 flex justify-between items-center">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -291,6 +338,9 @@ export default function Licenses() {
                           <DropdownMenuContent align="end" className="w-40">
                             <DropdownMenuItem onClick={() => updateMutation.mutate({ id: license.id, status: getToggledStatus(license.status)})}>
                               Toggle Status
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setSelectedLicenseId(license.id)}>
+                              View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => sendEmailMutation.mutate(license.id)}
