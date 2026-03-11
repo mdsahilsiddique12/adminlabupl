@@ -44,6 +44,20 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const sanitizeLicenseForDesktop = (license: any) => {
+    if (!license || typeof license !== "object") return license;
+    const { signature, ...rest } = license;
+    return rest;
+  };
+
+  const sanitizeValidationResultForDesktop = (result: any) => {
+    if (!result || typeof result !== "object") return result;
+    return {
+      ...result,
+      license: sanitizeLicenseForDesktop(result.license),
+    };
+  };
+
   const resolveLicenseRecipient = async (args: {
     assignedUserEmail?: string | null;
     deviceOwnerEmail?: string | null;
@@ -393,7 +407,7 @@ export async function registerRoutes(
         userAgent
       );
       
-      res.status(200).json(result);
+      res.status(200).json(sanitizeValidationResultForDesktop(result));
     } catch(err: any) {
       res.status(400).json({ valid: false, message: err.message });
     }
@@ -412,7 +426,7 @@ export async function registerRoutes(
         userAgent
       );
       
-      res.status(200).json(license);
+      res.status(200).json(sanitizeLicenseForDesktop(license));
     } catch(err: any) {
       res.status(400).json({ message: err.message });
     }
@@ -423,7 +437,7 @@ export async function registerRoutes(
       const { licenseKey, deviceFingerprint } = req.body;
       const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
       const license = await licenseService.activateLicense(licenseKey, deviceFingerprint, ipAddress, userAgent);
-      res.status(200).json(license);
+      res.status(200).json(sanitizeLicenseForDesktop(license));
     } catch(err: any) {
       res.status(400).json({ message: err.message });
     }
@@ -434,7 +448,7 @@ export async function registerRoutes(
       const { licenseKey, deviceFingerprint } = req.body;
       const { ipAddress = "", userAgent = "" } = req.deviceInfo ?? {};
       const result = await licenseService.validateLicense(licenseKey, deviceFingerprint, ipAddress, userAgent);
-      res.status(200).json(result);
+      res.status(200).json(sanitizeValidationResultForDesktop(result));
     } catch(err: any) {
       res.status(400).json({ valid: false, message: err.message });
     }
