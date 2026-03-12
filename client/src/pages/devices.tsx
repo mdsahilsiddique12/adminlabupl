@@ -105,8 +105,14 @@ export default function Devices() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-mono text-sm font-semibold">{device.fingerprint}</h3>
+                    <h3 className="text-sm font-semibold">{device.systemName || "Unnamed Device"}</h3>
                     <Badge variant="secondary" className="text-[10px]">HWID</Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Owner: {device.ownerName || "N/A"}
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-muted-foreground break-all">
+                    {device.fingerprint}
                   </div>
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">

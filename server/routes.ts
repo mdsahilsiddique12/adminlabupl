@@ -44,6 +44,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+<<<<<<< HEAD
   const sanitizeLicenseForDesktop = (license: any) => {
     if (!license || typeof license !== "object") return license;
     const { signature, ...rest } = license;
@@ -76,6 +77,11 @@ export async function registerRoutes(
     }
 
     return null;
+=======
+  const resolveDeviceCustomerEmail = (email: string | null | undefined) => {
+    const value = email?.trim();
+    return value && value.includes("@") ? value : null;
+>>>>>>> 4b3e59f (Send license emails to device customer email and show owner/device preview)
   };
 
   // Configure CORS for Netlify
@@ -264,16 +270,12 @@ export async function registerRoutes(
         details: `Created license ${license.licenseKey} for user ${userId}`
       });
 
-      const recipientEmail = await resolveLicenseRecipient({
-        assignedUserEmail: license.user?.email,
-        deviceOwnerEmail: license.device?.ownerEmail,
-        fallbackUserId: req.user?.id
-      });
+      const recipientEmail = resolveDeviceCustomerEmail(license.device?.ownerEmail);
       if (recipientEmail) {
         try {
           await emailService.sendLicenseDeliveryEmail({
             toEmail: recipientEmail,
-            ownerName: license.user?.username || license.device?.ownerName,
+            ownerName: license.device?.ownerName,
             licenseKey: license.licenseKey,
             planName: license.plan?.name,
             expiresAt: license.expiresAt,
@@ -290,7 +292,7 @@ export async function registerRoutes(
         await storage.createActivityLog({
           userId: req.user.id,
           action: "License Email Skipped",
-          details: `License ${license.licenseKey} email skipped: no recipient email found`
+          details: `License ${license.licenseKey} email skipped: device owner email missing`
         });
       }
       
@@ -364,18 +366,14 @@ export async function registerRoutes(
         return res.status(404).json({ message: "License not found" });
       }
 
-      const recipientEmail = await resolveLicenseRecipient({
-        assignedUserEmail: license.user?.email,
-        deviceOwnerEmail: license.device?.ownerEmail,
-        fallbackUserId: req.user?.id
-      });
+      const recipientEmail = resolveDeviceCustomerEmail(license.device?.ownerEmail);
       if (!recipientEmail) {
-        return res.status(400).json({ message: "No recipient email found for this license" });
+        return res.status(400).json({ message: "Device owner email is missing for this license" });
       }
 
       await emailService.sendLicenseDeliveryEmail({
         toEmail: recipientEmail,
-        ownerName: license.user?.username || license.device?.ownerName,
+        ownerName: license.device?.ownerName,
         licenseKey: license.licenseKey,
         planName: license.plan?.name,
         expiresAt: license.expiresAt,
