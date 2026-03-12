@@ -44,7 +44,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-<<<<<<< HEAD
   const sanitizeLicenseForDesktop = (license: any) => {
     if (!license || typeof license !== "object") return license;
     const { signature, ...rest } = license;
@@ -58,30 +57,9 @@ export async function registerRoutes(
       license: sanitizeLicenseForDesktop(result.license),
     };
   };
-
-  const resolveLicenseRecipient = async (args: {
-    assignedUserEmail?: string | null;
-    deviceOwnerEmail?: string | null;
-    fallbackUserId?: string | null;
-  }) => {
-    const assignedUserEmail = args.assignedUserEmail?.trim();
-    if (assignedUserEmail) return assignedUserEmail;
-
-    const deviceOwnerEmail = args.deviceOwnerEmail?.trim();
-    if (deviceOwnerEmail) return deviceOwnerEmail;
-
-    if (args.fallbackUserId) {
-      const fallbackUser = await storage.getUser(args.fallbackUserId);
-      const fallbackEmail = fallbackUser?.email?.trim();
-      if (fallbackEmail) return fallbackEmail;
-    }
-
-    return null;
-=======
   const resolveDeviceCustomerEmail = (email: string | null | undefined) => {
     const value = email?.trim();
     return value && value.includes("@") ? value : null;
->>>>>>> 4b3e59f (Send license emails to device customer email and show owner/device preview)
   };
 
   // Configure CORS for Netlify
