@@ -308,25 +308,47 @@ export class LicenseService {
       throw new Error('License has expired');
     }
 
+    const now = new Date();
+
     // Create or update device
     const device = await this.prisma.device.upsert({
       where: { fingerprint: deviceFingerprint },
-      update: { lastSeen: new Date() },
+      update: { lastSeen: now, ipAddress, userAgent },
       create: {
         fingerprint: deviceFingerprint,
         ipAddress,
         userAgent,
-        firstSeen: new Date(),
-        lastSeen: new Date()
+        firstSeen: now,
+        lastSeen: now
       }
     });
 
     if (!device.isActive) {
-      throw new Error('Device is pending admin approval');
+      // If this exact device was previously blocked/logged out, allow clean reconnect.
+      if (license.deviceId && license.deviceId === device.id) {
+        await this.prisma.device.update({
+          where: { id: device.id },
+          data: { isActive: true, lastSeen: now, ipAddress, userAgent }
+        });
+      } else {
+        throw new Error('Device is pending admin approval');
+      }
     }
 
     if (license.deviceId && license.deviceId !== device.id) {
-      throw new Error('License is already activated on another device');
+      const previouslyBoundDevice = license.deviceId
+        ? await this.prisma.device.findUnique({ where: { id: license.deviceId } })
+        : null;
+
+      // Allow transfer when the previously bound device was blocked/logged out by admin.
+      if (!previouslyBoundDevice || !previouslyBoundDevice.isActive) {
+        await this.prisma.device.update({
+          where: { id: device.id },
+          data: { isActive: true, lastSeen: now, ipAddress, userAgent }
+        });
+      } else {
+        throw new Error('License is already activated on another device');
+      }
     }
 
     const licenseData: LicenseData = {
@@ -343,7 +365,7 @@ export class LicenseService {
       data: {
         deviceId: device.id,
         status: LicenseStatus.ACTIVE,
-        activationDate: new Date(),
+        activationDate: now,
         signature: this.signLicenseData(licenseData)
       },
       include: {
