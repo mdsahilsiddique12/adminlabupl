@@ -1,7 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { format } from "date-fns";
-import { Globe, Hash, MonitorSmartphone } from "lucide-react";
-import { useDevices, useUpdateDevice } from "@/hooks/use-devices";
+import { Globe, Hash, MonitorSmartphone, MoreVertical } from "lucide-react";
+import { useDeleteDevice, useDevices, useUpdateDevice } from "@/hooks/use-devices";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -24,9 +30,19 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 export default function Devices() {
   const { data: devices = [], isLoading } = useDevices();
   const updateDevice = useUpdateDevice();
+  const deleteDevice = useDeleteDevice();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   const selected = devices.find((d) => d.id === selectedDeviceId) ?? null;
+
+  const deviceDisplayName = (device: any) => {
+    const lab = String(device?.labRegion || "").trim();
+    const owner = String(device?.ownerName || "").trim();
+    if (lab && owner) return `${lab} (${owner})`;
+    if (lab) return lab;
+    if (owner) return owner;
+    return String(device?.systemName || "Unnamed Device");
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -38,7 +54,7 @@ export default function Devices() {
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelectedDeviceId(null)}>
         <DialogContent className="sm:max-w-[860px]">
           <DialogHeader>
-            <DialogTitle>Device Details</DialogTitle>
+            <DialogTitle>{selected ? deviceDisplayName(selected) : "Device Details"}</DialogTitle>
           </DialogHeader>
 
           {selected ? (
@@ -53,7 +69,7 @@ export default function Devices() {
               <TabsContent value="identity" className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                 <Field label="Owner Name" value={selected.ownerName} />
                 <Field label="Owner Email" value={selected.ownerEmail} />
-                <Field label="Lab Region" value={selected.labRegion} />
+                <Field label="Lab Name / Region" value={selected.labRegion} />
                 <Field label="System Name" value={selected.systemName} />
                 <Field label="Fingerprint" value={selected.fingerprint} />
                 <Field label="Device ID" value={selected.id} />
@@ -105,11 +121,11 @@ export default function Devices() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">{device.systemName || "Unnamed Device"}</h3>
+                    <h3 className="text-sm font-semibold">{deviceDisplayName(device)}</h3>
                     <Badge variant="secondary" className="text-[10px]">HWID</Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Owner: {device.ownerName || "N/A"}
+                    System: {device.systemName || "N/A"}
                   </div>
                   <div className="mt-1 font-mono text-xs text-muted-foreground break-all">
                     {device.fingerprint}
@@ -134,17 +150,33 @@ export default function Devices() {
                   <Badge variant={device.isActive ? "default" : "secondary"}>
                     {device.isActive ? "Approved" : "Pending"}
                   </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => updateDevice.mutate({ id: device.id, isActive: !device.isActive })}
-                    disabled={updateDevice.isPending}
-                  >
-                    {device.isActive ? "Block" : "Approve"}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setSelectedDeviceId(device.id)}>
-                    Details
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="outline" aria-label="Device actions">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setSelectedDeviceId(device.id)}>View details</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => updateDevice.mutate({ id: device.id, isActive: !device.isActive })}
+                        disabled={updateDevice.isPending}
+                      >
+                        {device.isActive ? "Set inactive" : "Set active"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm("Delete this device? Linked licenses will be moved to pending.")) {
+                            deleteDevice.mutate(device.id);
+                          }
+                        }}
+                        disabled={deleteDevice.isPending}
+                      >
+                        Delete device
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </div>

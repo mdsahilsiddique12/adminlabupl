@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,23 @@ export function useUpdateDevice() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.devices.list.path] });
       toast({ title: "Device updated" });
+    },
+  });
+}
+
+export function useDeleteDevice() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const url = buildUrl(api.devices.delete.path, { id });
+      const res = await fetch(url, { method: api.devices.delete.method });
+      if (!res.ok) throw new Error("Failed to delete device");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.devices.list.path] });
+      toast({ title: "Device deleted" });
     },
   });
 }

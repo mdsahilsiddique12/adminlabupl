@@ -1,4 +1,4 @@
-import type { Express } from "express";
+﻿import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -515,6 +515,7 @@ export async function registerRoutes(
       if (existing) {
         const updated = await storage.updateDevice(existing.id, {
           ownerName: payload.ownerName ?? existing.ownerName,
+          ownerEmail: payload.ownerEmail ?? existing.ownerEmail,
           labRegion: payload.labRegion ?? existing.labRegion,
           diskId: payload.diskId ?? existing.diskId,
           motherboardId: payload.motherboardId ?? existing.motherboardId,
@@ -571,6 +572,32 @@ export async function registerRoutes(
     }
   });
 
+
+  app.delete(api.devices.delete.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const device = await storage.getDevice(String(id));
+      if (!device) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+
+      await prisma.license.updateMany({
+        where: { deviceId: String(id) },
+        data: { deviceId: null, status: LicenseStatus.PENDING }
+      });
+
+      await storage.deleteDevice(String(id));
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "Delete Device",
+        details: Deleted device 
+      });
+
+      res.status(204).send();
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
   // Activity Logs
   app.get(api.activityLogs.list.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     const logs = await storage.getActivityLogs();
@@ -657,3 +684,4 @@ export async function registerRoutes(
 
   return httpServer;
 }
+

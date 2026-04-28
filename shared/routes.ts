@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { 
   insertUserSchema, users,
   insertPlanSchema, plans,
@@ -117,6 +117,11 @@ export const api = {
         isActive: z.boolean().optional(),
       }),
       responses: { 200: z.custom<typeof devices.$inferSelect>(), 404: errorSchemas.notFound }
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/devices/:id' as const,
+      responses: { 204: z.void(), 404: errorSchemas.notFound }
     }
   },
   activityLogs: {
@@ -158,3 +163,8 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
   }
   return url;
 }
+
+
+
+
+

@@ -1,4 +1,4 @@
-import { db } from "./db";
+﻿import { db } from "./db";
 import {
   users, plans, licenses, devices, activityLogs,
   type User, type InsertUser,
@@ -41,6 +41,7 @@ export interface IStorage {
   getDeviceByDiskId(diskId: string): Promise<Device | undefined>;
   createDevice(device: InsertDevice): Promise<Device>;
   updateDevice(id: string, updates: Partial<Device>): Promise<Device | undefined>;
+  deleteDevice(id: string): Promise<void>;
 
   // Activity Logs
   getActivityLogs(): Promise<ActivityLog[]>;
@@ -137,6 +138,9 @@ export class DatabaseStorage implements IStorage {
     const [device] = await db.update(devices).set(updates).where(eq(devices.id, id)).returning();
     return device;
   }
+  async deleteDevice(id: string): Promise<void> {
+    await db.delete(devices).where(eq(devices.id, id));
+  }
 
   async getActivityLogs(): Promise<ActivityLog[]> {
     return await db.select().from(activityLogs);
@@ -148,3 +152,6 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+
+
