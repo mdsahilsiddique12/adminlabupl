@@ -590,7 +590,7 @@ export async function registerRoutes(
       await storage.createActivityLog({
         userId: req.user.id,
         action: "Delete Device",
-        details: Deleted device 
+        details: `Deleted device ${device.id}`
       });
 
       res.status(204).send();
@@ -684,4 +684,5 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
 
