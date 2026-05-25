@@ -85,6 +85,12 @@ function manifestUrl() {
   return `${window.location.origin}/api/update-manifest`;
 }
 
+const releaseFieldClass =
+  "rounded-2xl border border-cyan-200/20 bg-slate-950/75 text-slate-50 shadow-inner shadow-black/30 placeholder:text-slate-400 caret-cyan-300 selection:bg-cyan-400/30 selection:text-white focus-visible:border-cyan-300/60 focus-visible:ring-cyan-400/40";
+
+const releaseTextAreaClass =
+  "min-h-[88px] rounded-[24px] border border-cyan-200/20 bg-slate-950/75 text-slate-50 shadow-inner shadow-black/30 placeholder:text-slate-400 caret-cyan-300 selection:bg-cyan-400/30 selection:text-white focus-visible:border-cyan-300/60 focus-visible:ring-cyan-400/40";
+
 function ReleaseStudioSkeleton() {
   return (
     <div className="min-h-full p-6 md:p-8">
@@ -381,7 +387,7 @@ export default function Releases() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search versions, notes, settings..."
-                  className="rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                  className={releaseFieldClass}
                 />
                 <Button
                   className="rounded-2xl bg-white/10 text-white hover:bg-white/15"
@@ -466,7 +472,7 @@ export default function Releases() {
                         value={form.version}
                         onChange={(e) => updateField("version", e.target.value)}
                         placeholder={nextVersion}
-                        className="rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                        className={releaseFieldClass}
                       />
                       <Button variant="outline" className="rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={autoSuggestVersion}>
                         <Wand2 className="mr-2 h-4 w-4" />
@@ -480,7 +486,7 @@ export default function Releases() {
                       value={form.channel}
                       onChange={(e) => updateField("channel", e.target.value)}
                       placeholder="stable"
-                      className="rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseFieldClass}
                     />
                   </div>
                 </div>
@@ -492,7 +498,7 @@ export default function Releases() {
                       value={form.title}
                       onChange={(e) => updateField("title", e.target.value)}
                       placeholder="Cleaner update browser"
-                      className="rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseFieldClass}
                     />
                   </div>
                   <div className="space-y-2">
@@ -501,7 +507,7 @@ export default function Releases() {
                       value={form.packageUrl}
                       onChange={(e) => updateField("packageUrl", e.target.value)}
                       placeholder="https://..."
-                      className="rounded-2xl border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseFieldClass}
                     />
                   </div>
                 </div>
@@ -512,7 +518,7 @@ export default function Releases() {
                     value={form.summary}
                     onChange={(e) => updateField("summary", e.target.value)}
                     placeholder="Short release summary for users."
-                    className="min-h-[88px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                    className={releaseTextAreaClass}
                   />
                 </div>
 
@@ -522,7 +528,7 @@ export default function Releases() {
                     value={form.notes}
                     onChange={(e) => updateField("notes", e.target.value)}
                     placeholder="User-friendly release notes, one line per point."
-                    className="min-h-[120px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                    className={releaseTextAreaClass}
                   />
                 </div>
 
@@ -533,7 +539,7 @@ export default function Releases() {
                       value={form.newFeatures}
                       onChange={(e) => updateField("newFeatures", e.target.value)}
                       placeholder="One item per line"
-                      className="min-h-[120px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseTextAreaClass}
                     />
                   </div>
                   <div className="space-y-2">
@@ -542,7 +548,7 @@ export default function Releases() {
                       value={form.removed}
                       onChange={(e) => updateField("removed", e.target.value)}
                       placeholder="One item per line"
-                      className="min-h-[120px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseTextAreaClass}
                     />
                   </div>
                   <div className="space-y-2">
@@ -551,7 +557,7 @@ export default function Releases() {
                       value={form.settingsChanges}
                       onChange={(e) => updateField("settingsChanges", e.target.value)}
                       placeholder="One item per line"
-                      className="min-h-[120px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseTextAreaClass}
                     />
                   </div>
                   <div className="space-y-2">
@@ -560,7 +566,7 @@ export default function Releases() {
                       value={form.changes}
                       onChange={(e) => updateField("changes", e.target.value)}
                       placeholder="One item per line"
-                      className="min-h-[120px] rounded-[24px] border-white/10 bg-white/6 text-white placeholder:text-slate-400"
+                      className={releaseTextAreaClass}
                     />
                   </div>
                 </div>
@@ -572,7 +578,7 @@ export default function Releases() {
                       value={form.sha256}
                       onChange={(e) => updateField("sha256", e.target.value)}
                       placeholder="hash for integrity"
-                      className="rounded-2xl border-white/10 bg-white/6 font-mono text-white placeholder:text-slate-400"
+                      className={`${releaseFieldClass} font-mono`}
                     />
                   </div>
                   <div className="flex items-center justify-between rounded-[24px] border border-white/10 bg-white/6 px-4 py-3">
