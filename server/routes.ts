@@ -18,12 +18,29 @@ import {
 } from "./middleware/security";
 import { LicenseService } from "./services/license-service";
 import { emailService } from "./services/email-service";
+import { UpdateReleaseService } from "./services/update-release-service";
 import { LicenseStatus, PrismaClient } from "@prisma/client";
 import { allowedOrigins, jwtSecret } from "./config/env";
 
 const JWT_SECRET = jwtSecret();
 const prisma = new PrismaClient();
 const licenseService = new LicenseService(prisma);
+const releaseService = new UpdateReleaseService(prisma);
+const releaseInputSchema = z.object({
+  version: z.string().optional(),
+  title: z.string().optional(),
+  summary: z.string().optional(),
+  notes: z.string().optional(),
+  changes: z.union([z.array(z.string()), z.string()]).optional(),
+  newFeatures: z.union([z.array(z.string()), z.string()]).optional(),
+  removed: z.union([z.array(z.string()), z.string()]).optional(),
+  settingsChanges: z.union([z.array(z.string()), z.string()]).optional(),
+  packageUrl: z.string().optional(),
+  sha256: z.string().optional(),
+  channel: z.string().optional(),
+  critical: z.boolean().optional(),
+  published: z.boolean().optional(),
+});
 
 export function setupAuth(app: Express) {
   app.use(cookieParser());
@@ -74,6 +91,7 @@ export async function registerRoutes(
   app.use(securityMiddleware);
   
   setupAuth(app);
+  await releaseService.ensureSchema();
   
   // Auth routes with rate limiting
   app.post(api.auth.login.path, authRateLimit, async (req, res) => {
@@ -602,6 +620,84 @@ export async function registerRoutes(
   app.get(api.activityLogs.list.path, authenticateToken, requireRole(['owner', 'admin']), apiRateLimit, async (req, res) => {
     const logs = await storage.getActivityLogs();
     res.status(200).json(logs);
+  });
+
+  // Release Publisher for desktop update manifests
+  app.get("/api/update-manifest", apiRateLimit, async (_req, res) => {
+    try {
+      const manifest = await releaseService.getManifest();
+      if (!manifest) {
+        return res.status(404).json({ message: "No published release found." });
+      }
+      res.status(200).json(manifest);
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.get("/api/releases", authenticateToken, requireRole(["owner"]), apiRateLimit, async (_req, res) => {
+    try {
+      const releases = await releaseService.listReleases();
+      res.status(200).json({
+        releases,
+        nextVersion: releaseService.suggestVersionFromList(releases),
+        publishedManifest: await releaseService.getManifest(),
+      });
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.post("/api/releases", authenticateToken, requireRole(["owner"]), apiRateLimit, async (req: any, res) => {
+    try {
+      const input = releaseInputSchema.parse(req.body);
+      const release = await releaseService.createRelease(input, req.user?.id);
+      res.status(201).json(release);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.put("/api/releases/:id", authenticateToken, requireRole(["owner"]), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const input = releaseInputSchema.partial().parse(req.body);
+      const updated = await releaseService.updateRelease(String(id), input, req.user?.id);
+      if (!updated) {
+        return res.status(404).json({ message: "Release not found" });
+      }
+      res.status(200).json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid input", field: err.errors[0]?.path.join('.') });
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.post("/api/releases/:id/publish", authenticateToken, requireRole(["owner"]), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await releaseService.publishRelease(String(id), req.user?.id);
+      if (!updated) {
+        return res.status(404).json({ message: "Release not found" });
+      }
+      res.status(200).json(updated);
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.delete("/api/releases/:id", authenticateToken, requireRole(["owner"]), apiRateLimit, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await releaseService.deleteRelease(String(id), req.user?.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Release not found" });
+      }
+      res.status(204).send();
+    } catch {
+      res.status(500).json({ message: "Internal error" });
+    }
   });
 
   // License statistics endpoint

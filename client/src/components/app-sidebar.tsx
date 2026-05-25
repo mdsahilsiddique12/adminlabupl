@@ -1,4 +1,4 @@
-import { KeyRound, LayoutDashboard, Users, Smartphone, FileText, Layers, LogOut } from "lucide-react";
+import { KeyRound, LayoutDashboard, Users, Smartphone, FileText, Layers, LogOut, Rocket } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -24,7 +24,8 @@ const navItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { logout, isLoggingOut } = useAuth();
+  const { logout, isLoggingOut, user } = useAuth();
+  const isOwner = String(user?.role || "").toUpperCase() === "OWNER";
 
   return (
     <Sidebar variant="inset">
@@ -56,6 +57,21 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isOwner && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/releases"}
+                    tooltip="Release Studio"
+                    className="transition-all duration-200"
+                  >
+                    <Link href="/releases" className="flex items-center gap-3">
+                      <Rocket className="w-4 h-4" />
+                      <span className="font-medium">Release Studio</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

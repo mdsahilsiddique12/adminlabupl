@@ -17,8 +17,29 @@ import Plans from "./pages/plans";
 import Users from "./pages/users";
 import Devices from "./pages/devices";
 import Logs from "./pages/logs";
+import Releases from "./pages/releases";
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function AccessDenied() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center p-8">
+      <div className="max-w-xl rounded-3xl border border-border/50 bg-card/80 p-8 text-center shadow-2xl backdrop-blur">
+        <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Private Section</p>
+        <h2 className="mt-3 text-3xl font-bold text-foreground">Owner access only</h2>
+        <p className="mt-3 text-muted-foreground">
+          This area manages release publishing and manifest generation. It is intentionally separate from the license workflow.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({
+  component: Component,
+  requiredRole,
+}: {
+  component: React.ComponentType;
+  requiredRole?: "owner";
+}) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
@@ -30,6 +51,9 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   if (isLoading) return null; // Handled by layout spinner
   if (!user) return null;
+  if (requiredRole && String(user.role || "").toUpperCase() !== requiredRole.toUpperCase()) {
+    return <AccessDenied />;
+  }
 
   return <Component />;
 }
@@ -57,6 +81,9 @@ function Router() {
       </Route>
       <Route path="/logs">
         <Layout><ProtectedRoute component={Logs} /></Layout>
+      </Route>
+      <Route path="/releases">
+        <Layout><ProtectedRoute component={Releases} requiredRole="owner" /></Layout>
       </Route>
 
       <Route component={NotFound} />
